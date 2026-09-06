@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Castlocal
+GenericName=Transmisor a Chromecast
+Comment=Levanta el servidor para transmitir videos al Chromecast (Q para cerrar)
+Exec=konsole -e @@DIR@@/castlocal-console.sh
+Icon=video-television
+Terminal=false
+Categories=AudioVideo;Video;
+StartupNotify=false
