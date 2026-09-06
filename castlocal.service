@@ -1,0 +1,14 @@
+[Unit]
+Description=castlocal - local Chromecast caster
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/castlocal
+ExecStart=%h/.local/bin/uv run python -m castlocal.app
+Restart=on-failure
+Environment=CASTLOCAL_PORT=8000
+EnvironmentFile=-%h/.config/castlocal.env
+
+[Install]
+WantedBy=default.target

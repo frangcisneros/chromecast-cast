@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>castlocal</title>
+<style>
+:root { color-scheme: dark; --bg:#14141a; --card:#1e1e26; --acc:#5aa9ff; --txt:#eee; --mut:#999; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--txt); font-family:system-ui,sans-serif; }
+header { padding:12px 16px; background:#0d0d12; position:sticky; top:0; z-index:5; }
+header h1 { margin:0; font-size:18px; }
+header p { margin:2px 0 0; font-size:12px; color:var(--mut); }
+main { padding:12px 16px 180px; max-width:760px; margin:auto; }
+section { background:var(--card); border-radius:12px; padding:12px; margin-bottom:12px; }
+h2 { font-size:14px; margin:0 0 8px; text-transform:uppercase; letter-spacing:.5px; color:var(--mut); }
+.row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+input[type=text], select { flex:1; min-width:140px; background:#101016; color:var(--txt); border:1px solid #333; border-radius:8px; padding:10px; font-size:15px; }
+button { background:var(--acc); color:#06121f; border:0; border-radius:10px; padding:12px 16px; font-size:15px; font-weight:700; cursor:pointer; }
+button.ghost { background:#2a2a35; color:var(--txt); }
+button.big { font-size:17px; padding:14px 20px; }
+button:disabled { opacity:.4; }
+.file { display:flex; gap:8px; align-items:center; padding:10px 0; border-top:1px solid #2c2c38; }
+.file:first-of-type { border-top:0; }
+.file .meta { flex:1; min-width:0; }
+.file .name { font-size:15px; word-break:break-all; }
+.file .sub { font-size:12px; color:var(--mut); }
+.badge { font-size:11px; padding:2px 8px; border-radius:20px; background:#2a2a35; color:var(--mut); white-space:nowrap; }
+.badge.trans { background:#4a3418; color:#ffbe5a; }
+#player { position:fixed; left:0; right:0; bottom:0; background:#0d0d12; border-top:1px solid #2c2c38; padding:10px 16px calc(10px + env(safe-area-inset-bottom)); }
+#player .title { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#player .times { font-size:12px; color:var(--mut); }
+#seek { width:100%; accent-color:var(--acc); height:32px; }
+.ctrls { display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap; }
+.ctrls button { padding:10px 14px; font-size:16px; }
+#vol { flex:1; min-width:90px; accent-color:var(--acc); }
+.subrow { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+.subrow select { flex:2; }
+.stepper { display:flex; gap:4px; align-items:center; }
+.stepper button { padding:8px 12px; font-size:14px; }
+#offsetLbl { min-width:56px; text-align:center; font-size:14px; }
+.hidden { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📺 castlocal</h1>
+  <p id="srvInfo">buscando servidor…</p>
+</header>
+<main>
+  <section>
+    <h2>Chromecast</h2>
+    <div class="row">
+      <select id="devSel"><option value="">— buscar —</option></select>
+      <button class="ghost" id="scanBtn">🔍</button>
+      <button id="connBtn">Conectar</button>
+    </div>
+    <p id="devInfo" style="font-size:13px;color:var(--mut)"></p>
+  </section>
+
+  <section>
+    <h2>Películas</h2>
+    <div class="row" style="margin-bottom:8px">
+      <input type="text" id="filter" placeholder="filtrar…">
+      <button class="ghost" id="reloadBtn">↻</button>
+    </div>
+    <div id="files"><p style="color:var(--mut)">cargando…</p></div>
+  </section>
+
+  <section>
+    <h2>Subtítulos en español</h2>
+    <div class="row">
+      <input type="text" id="subQ" placeholder="nombre para buscar en OpenSubtitles…">
+      <button id="subSearchBtn">Buscar</button>
+    </div>
+    <p id="subMsg" style="font-size:13px;color:var(--mut);min-height:18px;margin:8px 0 0"></p>
+    <div id="subResults" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:8px">
+      <input type="file" id="subFile" accept=".srt,.vtt" style="flex:1">
+      <button class="ghost" id="subUpBtn">Subir .srt</button>
+    </div>
+  </section>
+</main>
+
+<div id="player">
+  <div class="title" id="nowTitle">sin reproducción</div>
+  <input type="range" id="seek" min="0" max="100" value="0" step="1">
+  <div class="times"><span id="tCur">0:00</span> / <span id="tDur">0:00</span> · <span id="state">—</span></div>
+  <div class="ctrls">
+    <button id="backBtn" class="ghost">−10s</button>
+    <button id="ppBtn" class="big">⏯</button>
+    <button id="fwdBtn" class="ghost">+10s</button>
+    <button id="stopBtn" class="ghost">⏹</button>
+    <input type="range" id="vol" min="0" max="100" value="80">
+    <button id="muteBtn" class="ghost">🔊</button>
+  </div>
+  <div class="subrow">
+    <select id="subSel"><option value="none">Sin subtítulos</option></select>
+    <div class="stepper">
+      <button class="ghost" id="offMinus">−0.5s</button>
+      <span id="offsetLbl">0.0s</span>
+      <button class="ghost" id="offPlus">+0.5s</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const api = (m, u, b) => fetch(u, {method:m, headers:{'Content-Type':'application/json'}, body:b?JSON.stringify(b):undefined}).then(r=>r.json());
+let FILES = [], CUR = null, OFFSET = 0, SEEKING = false;
+
+const fmt = s => { s=Math.max(0,Math.floor(s||0)); const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60; return (h?h+':':'')+String(m).padStart(h?2:1,'0')+':'+String(x).padStart(2,'0'); };
+const selFile = () => FILES.find(f=>f.id===CUR);
+
+async function init() {
+  const s = await api('GET','/api/server').catch(()=>null);
+  if (s) $('srvInfo').textContent = 'Abrí en el celu: ' + s.base_url;
+  await scanDevices(); await loadFiles(); setInterval(poll, 2500);
+}
+async function scanDevices() {
+  $('devInfo').textContent = 'buscando Chromecasts…';
+  const r = await api('GET','/api/devices').catch(()=>({devices:[]}));
+  const sel = $('devSel'); sel.innerHTML = '';
+  (r.devices||[]).forEach(d => { const o=document.createElement('option'); o.value=d.host; o.textContent=`${d.name} (${d.host})`; sel.appendChild(o); });
+  if (!(r.devices||[]).length) { const o=document.createElement('option'); o.value=''; o.textContent='— ninguno —'; sel.appendChild(o); }
+  $('devInfo').textContent = r.connected ? 'conectado: '+r.connected.name : ((r.devices||[]).length+' encontrados');
+}
+async function loadFiles() {
+  const r = await api('GET','/api/files').catch(()=>({files:[]}));
+  FILES = r.files || [];
+  renderFiles($('filter').value);
+}
+function renderFiles(f) {
+  const box = $('files'); box.innerHTML = '';
+  const q = (f||'').toLowerCase();
+  FILES.filter(v=>v.name.toLowerCase().includes(q)).forEach(v => {
+    const d = document.createElement('div'); d.className='file';
+    d.innerHTML = `<div class="meta"><div class="name"></div><div class="sub">${v.size_mb} MB · ${v.mode} · ${v.subs.length-1} subs</div></div><span class="badge${v.mode==='direct'?'':' trans'}">${v.mode==='direct'?'▶ directo':'⚙ '+v.mode}</span>`;
+    d.querySelector('.name').textContent = v.name;
+    const b = document.createElement('button'); b.textContent='Castear'; b.onclick=()=>castFile(v.id);
+    d.appendChild(b); box.appendChild(d);
+  });
+  if (!box.children.length) box.innerHTML = '<p style="color:var(--mut)">sin coincidencias</p>';
+}
+async function castFile(id) {
+  CUR = id; OFFSET = 0; $('offsetLbl').textContent='0.0s';
+  const f = selFile(); $('subQ').value = f ? f.name.replace(/\.[^.]+$/,'').replace(/[._]/g,' ') : '';
+  const r = await api('POST','/api/cast',{media:id, sub:'none', offset:0});
+  if (r.error) alert('Error: '+r.error); else { $('nowTitle').textContent = f.name; await loadSubs(); }
+}
+async function loadSubs() {
+  if (!CUR) return;
+  const r = await api('GET',`/api/subs/list?media=${CUR}`).catch(()=>({subs:[]}));
+  const sel = $('subSel'); sel.innerHTML='';
+  (r.subs||[{key:'none',label:'Sin subtítulos'}]).forEach(s=>{ const o=document.createElement('option'); o.value=s.key; o.textContent=s.label; sel.appendChild(o); });
+}
+async function applySub() { if (CUR) await api('POST','/api/subtitle',{sub:$('subSel').value, offset:OFFSET}); }
+async function poll() {
+  const r = await api('GET','/api/status').catch(()=>null);
+  if (!r || !r.connected) { $('state').textContent = r&&r.error ? 'error' : 'desconectado'; return; }
+  $('state').textContent = r.player_state || '—';
+  if (r.duration && !SEEKING) { $('seek').max = Math.floor(r.duration); $('seek').value = Math.floor(r.current_time||0); }
+  $('tCur').textContent = fmt(r.current_time); $('tDur').textContent = fmt(r.duration);
+  if (r.volume_level!=null && document.activeElement!==$('vol')) $('vol').value = Math.round(r.volume_level*100);
+  $('muteBtn').textContent = r.volume_muted ? '🔇' : '🔊';
+}
+$('scanBtn').onclick = scanDevices;
+$('connBtn').onclick = async () => { const r = await api('POST','/api/connect',{host:$('devSel').value||undefined}); $('devInfo').textContent = r.connected ? 'conectado: '+r.connected.name : ('Error: '+(r.error||'?')); };
+$('reloadBtn').onclick = loadFiles;
+$('filter').oninput = e => renderFiles(e.target.value);
+$('ppBtn').onclick = async () => { const s = await api('GET','/api/status'); (s.player_state==='PLAYING') ? await api('POST','/api/pause') : await api('POST','/api/play'); poll(); };
+$('stopBtn').onclick = async () => { await api('POST','/api/stop'); $('nowTitle').textContent='sin reproducción'; };
+$('backBtn').onclick = () => api('POST','/api/seek',{delta:-10}).then(poll);
+$('fwdBtn').onclick = () => api('POST','/api/seek',{delta:10}).then(poll);
+$('seek').addEventListener('pointerdown',()=>SEEKING=true);
+$('seek').addEventListener('pointerup',e=>{ SEEKING=false; api('POST','/api/seek',{position:+e.target.value}).then(poll); });
+$('vol').onchange = e => api('POST','/api/volume',{level:+e.target.value/100});
+$('muteBtn').onclick = async () => { const s = await api('GET','/api/status'); await api('POST','/api/volume',{muted:!s.volume_muted}); poll(); };
+$('subSel').onchange = applySub;
+$('offMinus').onclick = () => { OFFSET=Math.round((OFFSET-0.5)*10)/10; $('offsetLbl').textContent=OFFSET.toFixed(1)+'s'; applySub(); };
+$('offPlus').onclick = () => { OFFSET=Math.round((OFFSET+0.5)*10)/10; $('offsetLbl').textContent=OFFSET.toFixed(1)+'s'; applySub(); };
+$('subSearchBtn').onclick = async () => {
+  if (!CUR) return say('Casteá primero un archivo');
+  const box = $('subResults'); box.textContent = 'buscando…'; say('');
+  let r;
+  try { r = await api('GET',`/api/subs/search?media=${CUR}&q=${encodeURIComponent($('subQ').value)}`); }
+  catch(e) { box.textContent=''; return say('Error de red buscando'); }
+  box.innerHTML = '';
+  if (r.error) return say(r.error);
+  (r.subs||[]).slice(0,10).forEach(s => {
+    const d = document.createElement('div'); d.className='file';
+    const t = document.createElement('div'); t.className='meta';
+    const n = document.createElement('div'); n.className='name'; n.textContent = s.release||('sub '+s.id);
+    const u = document.createElement('div'); u.className='sub'; u.textContent = `${s.downloads||0} descargas${s.hd?' · HD':''}`;
+    t.append(n,u); d.appendChild(t);
+    if (s.file_id) {
+      const b=document.createElement('button'); b.className='ghost'; b.textContent='Descargar';
+      b.onclick = async () => {
+        b.disabled = true; b.textContent = 'Descargando…'; say('');
+        try {
+          const rr = await api('POST','/api/subs/download',{media:CUR, file_id:s.file_id});
+          if (rr.error) { say('Error: '+rr.error); }
+          else { await loadSubs(); $('subSel').value=rr.key; await applySub(); say('Subtítulo activado ✓'); }
+        } catch(e) { say('Error de red descargando'); }
+        b.disabled = false; b.textContent = 'Descargar';
+      };
+      d.appendChild(b);
+    } else {
+      const sp = document.createElement('span'); sp.className='badge'; sp.textContent='sin archivo'; d.appendChild(sp);
+    }
+    box.appendChild(d);
+  });
+  if (!box.children.length) box.textContent = 'sin resultados';
+};
+function say(m) { $('subMsg').textContent = m; }
+$('subUpBtn').onclick = async () => {
+  if (!CUR) return say('Casteá primero un archivo');
+  const f = $('subFile').files[0]; if (!f) return say('Elegí un archivo .srt/.vtt primero');
+  say('Subiendo…');
+  const fd = new FormData(); fd.append('media', CUR); fd.append('file', f);
+  try {
+    const r = await fetch('/api/subs/upload',{method:'POST', body:fd}).then(x=>x.json());
+    if (r.error) say('Error: '+r.error); else { await loadSubs(); $('subSel').value=r.key; await applySub(); say('Subtítulo activado ✓'); }
+  } catch(e) { say('Error de red subiendo'); }
+};
+init();
+</script>
+</body>
+</html>
