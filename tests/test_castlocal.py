@@ -88,3 +88,28 @@ def test_parse_range():
     assert streamer.parse_range("bytes=0-99", 1000) == (0, 99)
     assert streamer.parse_range(None, 1000) is None
     assert streamer.parse_range("bytes=9999-10000", 1000) is None
+
+
+def test_custom_dirs(tmp_path: Path, monkeypatch):
+    from castlocal import config
+
+    dirs_file = tmp_path / "dirs.json"
+    monkeypatch.setattr(config, "DIRS_FILE", dirs_file)
+    monkeypatch.setattr(config, "CONFIG_DIR", tmp_path)
+    assert config.custom_dirs() == []
+    other = tmp_path / "pelis"
+    other.mkdir()
+    config.add_media_dir(str(other))
+    assert config.get_media_dirs() == [other]
+    with open(dirs_file, encoding="utf-8") as f:
+        import json
+
+        assert json.load(f) == [str(other)]
+    config.remove_media_dir(str(other))
+    assert config.custom_dirs() == []
+    try:
+        config.add_media_dir(str(tmp_path / "nope"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError")

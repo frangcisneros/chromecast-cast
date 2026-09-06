@@ -38,7 +38,7 @@ def file_id(path: Path) -> str:
 
 def scan() -> list[VideoFile]:
     found: list[VideoFile] = []
-    for root in config.default_media_dirs():
+    for root in config.get_media_dirs():
         if not root.is_dir():
             continue
         for path in root.rglob("*"):

@@ -109,6 +109,39 @@ def create_app() -> Flask:
     def server():
         return jsonify({"base_url": base_url(), "port": config.PORT})
 
+    @app.get("/api/dirs")
+    def list_dirs():
+        return jsonify(
+            {
+                "dirs": [str(p) for p in config.get_media_dirs()],
+                "custom": [str(p) for p in config.custom_dirs()],
+                "defaults": [str(p) for p in config.default_media_dirs()],
+            }
+        )
+
+    @app.post("/api/dirs")
+    def add_dir():
+        body = request.get_json(force=True, silent=True) or {}
+        try:
+            added = config.add_media_dir(str(body.get("path", "")))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        _files_cache["at"] = 0
+        return jsonify({"ok": True, "added": str(added)})
+
+    @app.delete("/api/dirs")
+    def delete_dir():
+        body = request.get_json(force=True, silent=True) or {}
+        config.remove_media_dir(str(body.get("path", "")))
+        _files_cache["at"] = 0
+        return jsonify({"ok": True})
+
+    @app.post("/api/dirs/reset")
+    def reset_dirs():
+        config.clear_custom_dirs()
+        _files_cache["at"] = 0
+        return jsonify({"ok": True})
+
     @app.get("/api/files")
     def list_files():
         items = []

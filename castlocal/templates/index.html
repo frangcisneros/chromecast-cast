@@ -59,6 +59,17 @@ button:disabled { opacity:.4; }
   </section>
 
   <section>
+    <h2>Carpetas</h2>
+    <div id="dirs"></div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="dirInput" placeholder="/home/francisco/Pelis…">
+      <button id="dirAddBtn">Agregar</button>
+    </div>
+    <p style="font-size:12px;color:var(--mut)">Sin carpetas agregadas usa Descargas y Videos. Al agregar una, solo se mira esa.</p>
+    <p id="dirMsg" style="font-size:13px;color:var(--mut);min-height:18px;margin:4px 0 0"></p>
+  </section>
+
+  <section>
     <h2>Películas</h2>
     <div class="row" style="margin-bottom:8px">
       <input type="text" id="filter" placeholder="filtrar…">
@@ -115,7 +126,7 @@ const selFile = () => FILES.find(f=>f.id===CUR);
 async function init() {
   const s = await api('GET','/api/server').catch(()=>null);
   if (s) $('srvInfo').textContent = 'Abrí en el celu: ' + s.base_url;
-  await scanDevices(); await loadFiles(); setInterval(poll, 2500);
+  await scanDevices(); await loadDirs(); await loadFiles(); setInterval(poll, 2500);
 }
 async function scanDevices() {
   $('devInfo').textContent = 'buscando Chromecasts…';
@@ -124,6 +135,31 @@ async function scanDevices() {
   (r.devices||[]).forEach(d => { const o=document.createElement('option'); o.value=d.host; o.textContent=`${d.name} (${d.host})`; sel.appendChild(o); });
   if (!(r.devices||[]).length) { const o=document.createElement('option'); o.value=''; o.textContent='— ninguno —'; sel.appendChild(o); }
   $('devInfo').textContent = r.connected ? 'conectado: '+r.connected.name : ((r.devices||[]).length+' encontrados');
+}
+async function loadDirs() {
+  const r = await api('GET','/api/dirs').catch(()=>null);
+  const box = $('dirs'); box.innerHTML = '';
+  if (!r) return;
+  r.dirs.forEach(d => {
+    const row = document.createElement('div'); row.className='file';
+    const t = document.createElement('div'); t.className='meta';
+    const n = document.createElement('div'); n.className='name'; n.textContent = d;
+    t.appendChild(n); row.appendChild(t);
+    if (r.custom.includes(d)) {
+      const b = document.createElement('button'); b.className='ghost'; b.textContent='✕';
+      b.onclick = async () => { await api('DELETE','/api/dirs',{path:d}); await loadDirs(); await loadFiles(); };
+      row.appendChild(b);
+    } else {
+      const s = document.createElement('span'); s.className='badge'; s.textContent='default'; row.appendChild(s);
+    }
+    box.appendChild(row);
+  });
+  if (r.custom.length) {
+    const row = document.createElement('div'); row.className='row'; row.style.marginTop='8px';
+    const b = document.createElement('button'); b.className='ghost'; b.textContent='Volver a defaults';
+    b.onclick = async () => { await api('POST','/api/dirs/reset'); await loadDirs(); await loadFiles(); };
+    row.appendChild(b); box.appendChild(row);
+  }
 }
 async function loadFiles() {
   const r = await api('GET','/api/files').catch(()=>({files:[]}));
@@ -164,6 +200,12 @@ async function poll() {
   if (r.volume_level!=null && document.activeElement!==$('vol')) $('vol').value = Math.round(r.volume_level*100);
   $('muteBtn').textContent = r.volume_muted ? '🔇' : '🔊';
 }
+$('dirAddBtn').onclick = async () => {
+  const v = $('dirInput').value.trim(); if (!v) return;
+  const r = await api('POST','/api/dirs',{path:v}).catch(()=>({error:'red'}));
+  if (r.error) $('dirMsg').textContent = 'Error: '+r.error;
+  else { $('dirInput').value=''; $('dirMsg').textContent=''; await loadDirs(); await loadFiles(); }
+};
 $('scanBtn').onclick = scanDevices;
 $('connBtn').onclick = async () => { const r = await api('POST','/api/connect',{host:$('devSel').value||undefined}); $('devInfo').textContent = r.connected ? 'conectado: '+r.connected.name : ('Error: '+(r.error||'?')); };
 $('reloadBtn').onclick = loadFiles;
