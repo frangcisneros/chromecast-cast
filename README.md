@@ -20,6 +20,20 @@ volume, seek). No extra setup for that.
 
 ## Run
 
+Console launcher (opens a terminal, Q stops it and closes):
+
+```bash
+./castlocal-console.sh
+```
+
+Or from the app menu: Castlocal. To install the menu entry:
+
+```bash
+sed "s|@@DIR@@|$PWD|" castlocal.desktop.template > ~/.local/share/applications/castlocal.desktop
+```
+
+Manual run:
+
 ```bash
 cd ~/projects/castlocal
 uv run python -m castlocal.app
