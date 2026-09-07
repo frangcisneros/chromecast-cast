@@ -198,6 +198,9 @@ def create_app() -> Flask:
             else:
                 url = f"{base_url()}/transcode/{vf.id}?start={start}"
                 streamer.transcode_start(vf.id, vf.path, start, mode)
+                # El receptor arranca su reloj en 0 aunque el video empiece en
+                # `start`: desplazar los subs para que sigan sincronizados.
+                surl = sub_url(vf, sub_key, offset - start)
                 cast_manager.play(url, mime, vf.name, sub_url=surl, start=0, duration=dur)
                 base = start
         except Exception as exc:
@@ -267,9 +270,9 @@ def create_app() -> Flask:
                 pipe = str(_session.get("mode"))
                 streamer.transcode_start(vf.id, vf.path, target, pipe)
                 url = f"{base_url()}/transcode/{vf.id}?start={target}"
-                sub = sub_url(
-                    vf, str(_session.get("sub", "none")), float(_session.get("offset", 0) or 0)
-                )
+                user_offset = float(_session.get("offset", 0) or 0)
+                # El receptor reinicia su reloj en 0: correr los subs -target.
+                sub = sub_url(vf, str(_session.get("sub", "none")), user_offset - target)
                 cast_manager.play(
                     url, "video/mp4", vf.name, sub_url=sub, start=0, duration=full_duration(vf)
                 )
@@ -296,12 +299,21 @@ def create_app() -> Flask:
         except Exception:
             pos = 0
         mode = str(_session.get("mode") or "direct")
+        if mode in ("remux", "transcode"):
+            # El Chromecast cuenta desde el inicio del transcode actual;
+            # la posición real es base + lo que lleva andando (igual que /api/status).
+            pos = float(_session.get("base") or 0) + pos
+            dur = full_duration(vf)
+            if dur:
+                pos = min(pos, max(0.0, dur - 1))
         surl = sub_url(vf, sub_key, offset)
         try:
             if mode in ("remux", "transcode"):
                 streamer.transcode_start(vf.id, vf.path, pos, mode)
                 url = f"{base_url()}/transcode/{vf.id}?start={pos}"
                 dur = full_duration(vf)
+                # Reloj del receptor vuelve a 0: correr los subs -pos.
+                surl = sub_url(vf, sub_key, offset - pos)
                 cast_manager.play(url, "video/mp4", vf.name, sub_url=surl, start=0, duration=dur)
                 _session["base"] = pos
             else:
@@ -368,6 +380,7 @@ def create_app() -> Flask:
             vtt = subtitles.load_vtt(path, offset)
         except OSError as exc:
             return jsonify({"error": str(exc)}), 500
+        print(f"[subs] serve media={media_id} key={key} bytes={len(vtt)}", flush=True)
         return Response(vtt, status=200, content_type="text/vtt; charset=utf-8")
 
     @app.get("/api/subs/list")

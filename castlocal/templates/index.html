@@ -3,23 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0d0d12">
+<meta name="description" content="castlocal: send local video files to a Chromecast with subtitles.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d0d12'/%3E%3Cpath d='M13 10.5v11l9-5.5z' fill='%235aa9ff'/%3E%3C/svg%3E">
 <title>castlocal</title>
 <style>
-:root { color-scheme: dark; --bg:#14141a; --card:#1e1e26; --acc:#5aa9ff; --txt:#eee; --mut:#999; }
+:root { color-scheme: dark; --bg:#14141a; --card:#1e1e26; --acc:#5aa9ff; --txt:#eee; --mut:#999; --focus:#8fc2ff; }
 * { box-sizing: border-box; }
+::selection { background: rgba(90,169,255,.35); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 body { margin:0; background:var(--bg); color:var(--txt); font-family:system-ui,sans-serif; }
 header { padding:12px 16px; background:#0d0d12; position:sticky; top:0; z-index:5; }
 header h1 { margin:0; font-size:18px; }
 header p { margin:2px 0 0; font-size:12px; color:var(--mut); }
-main { padding:12px 16px 180px; max-width:760px; margin:auto; }
+main { padding:12px 16px 24px; max-width:760px; margin:auto; }
 section { background:var(--card); border-radius:12px; padding:12px; margin-bottom:12px; }
 h2 { font-size:14px; margin:0 0 8px; text-transform:uppercase; letter-spacing:.5px; color:var(--mut); }
 .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 input[type=text], select { flex:1; min-width:140px; background:#101016; color:var(--txt); border:1px solid #333; border-radius:8px; padding:10px; font-size:15px; }
-button { background:var(--acc); color:#06121f; border:0; border-radius:10px; padding:12px 16px; font-size:15px; font-weight:700; cursor:pointer; }
+button { background:var(--acc); color:#06121f; border:0; border-radius:10px; padding:12px 16px; font-size:15px; font-weight:700; cursor:pointer; min-height:44px; }
 button.ghost { background:#2a2a35; color:var(--txt); }
 button.big { font-size:17px; padding:14px 20px; }
 button:disabled { opacity:.4; }
+button svg { vertical-align: -3px; }
+header h1 svg { vertical-align: -4px; margin-right: 2px; }
 .file { display:flex; gap:8px; align-items:center; padding:10px 0; border-top:1px solid #2c2c38; }
 .file:first-of-type { border-top:0; }
 .file .meta { flex:1; min-width:0; }
@@ -27,32 +34,36 @@ button:disabled { opacity:.4; }
 .file .sub { font-size:12px; color:var(--mut); }
 .badge { font-size:11px; padding:2px 8px; border-radius:20px; background:#2a2a35; color:var(--mut); white-space:nowrap; }
 .badge.trans { background:#4a3418; color:#ffbe5a; }
-#player { position:fixed; left:0; right:0; bottom:0; background:#0d0d12; border-top:1px solid #2c2c38; padding:10px 16px calc(10px + env(safe-area-inset-bottom)); }
-#player .title { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-#player .times { font-size:12px; color:var(--mut); }
-#seek { width:100%; accent-color:var(--acc); height:32px; }
-.ctrls { display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap; }
-.ctrls button { padding:10px 14px; font-size:16px; }
-#vol { flex:1; min-width:90px; accent-color:var(--acc); }
+.now { font-size:17px; font-weight:700; word-break:break-all; }
+.times { font-size:13px; color:var(--mut); margin-top:4px; }
+#seek { width:100%; accent-color:var(--acc); height:36px; }
+.transport { display:flex; gap:8px; margin-top:8px; }
+.transport #ppBtn { flex:1; }
+.skips { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:8px; }
+.skips button { padding:12px 4px; font-size:14px; }
+.volrow { display:flex; gap:8px; align-items:center; }
+.volrow #vol { flex:1; accent-color:var(--acc); height:36px; }
 .subrow { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
 .subrow select { flex:2; }
 .stepper { display:flex; gap:4px; align-items:center; }
-.stepper button { padding:8px 12px; font-size:14px; }
+.stepper button { padding:8px 12px; font-size:14px; min-height:40px; }
 #offsetLbl { min-width:56px; text-align:center; font-size:14px; }
+.backrow { margin-bottom:12px; }
 .hidden { display:none; }
 </style>
 </head>
 <body>
 <header>
-  <h1>📺 castlocal</h1>
+  <h1><svg viewBox="0 0 32 32" width="20" height="20" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0d0d12"/><path d="M13 10.5v11l9-5.5z" fill="#5aa9ff"/></svg> castlocal</h1>
   <p id="srvInfo">buscando servidor…</p>
 </header>
 <main>
+<div id="view-browser">
   <section>
     <h2>Chromecast</h2>
     <div class="row">
-      <select id="devSel"><option value="">— buscar —</option></select>
-      <button class="ghost" id="scanBtn">🔍</button>
+      <select id="devSel" aria-label="Chromecast"><option value="">— buscar —</option></select>
+      <button class="ghost" id="scanBtn" aria-label="Buscar Chromecasts" title="Buscar Chromecasts"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg></button>
       <button id="connBtn">Conectar</button>
     </div>
     <p id="devInfo" style="font-size:13px;color:var(--mut)"></p>
@@ -62,7 +73,7 @@ button:disabled { opacity:.4; }
     <h2>Carpetas</h2>
     <div id="dirs"></div>
     <div class="row" style="margin-top:8px">
-      <input type="text" id="dirInput" placeholder="/home/francisco/Pelis…">
+      <input type="text" id="dirInput" aria-label="Carpeta de películas" placeholder="/ruta/a/tus/pelis…">
       <button id="dirAddBtn">Agregar</button>
     </div>
     <p style="font-size:12px;color:var(--mut)">Sin carpetas agregadas usa Descargas y Videos. Al agregar una, solo se mira esa.</p>
@@ -72,61 +83,120 @@ button:disabled { opacity:.4; }
   <section>
     <h2>Películas</h2>
     <div class="row" style="margin-bottom:8px">
-      <input type="text" id="filter" placeholder="filtrar…">
-      <button class="ghost" id="reloadBtn">↻</button>
+      <input type="text" id="filter" aria-label="Filtrar películas" placeholder="filtrar…">
+      <button class="ghost" id="reloadBtn" aria-label="Recargar lista" title="Recargar lista"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3v5h-5"/></svg></button>
     </div>
     <div id="files"><p style="color:var(--mut)">cargando…</p></div>
+  </section>
+</div>
+
+<div id="view-player" class="hidden">
+  <div class="backrow">
+    <button class="ghost" id="browseBtn">‹ Películas</button>
+  </div>
+
+  <section>
+    <h2>Sonando</h2>
+    <div class="now" id="nowTitle">sin reproducción</div>
+    <input type="range" id="seek" min="0" max="100" value="0" step="1" aria-label="Posición">
+    <div class="times"><span id="tCur">0:00</span> / <span id="tDur">0:00</span> · <span id="state">—</span></div>
+    <div class="transport">
+      <button id="ppBtn" class="big" aria-label="Pausar o continuar"></button>
+      <button id="stopBtn" class="ghost" aria-label="Detener"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+    </div>
+    <div class="skips" role="group" aria-label="Retroceder">
+      <button class="ghost" data-delta="-300">−5m</button>
+      <button class="ghost" data-delta="-60">−1m</button>
+      <button class="ghost" data-delta="-30">−30s</button>
+      <button class="ghost" data-delta="-10">−10s</button>
+    </div>
+    <div class="skips" role="group" aria-label="Adelantar">
+      <button class="ghost" data-delta="10">+10s</button>
+      <button class="ghost" data-delta="30">+30s</button>
+      <button class="ghost" data-delta="60">+1m</button>
+      <button class="ghost" data-delta="300">+5m</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Sonido</h2>
+    <div class="volrow">
+      <input type="range" id="vol" min="0" max="100" value="80" aria-label="Volumen">
+      <button id="muteBtn" class="ghost" aria-label="Silenciar"></button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Subtítulo</h2>
+    <div class="subrow" style="margin-top:0">
+      <select id="subSel" aria-label="Subtítulo"><option value="none">Sin subtítulos</option></select>
+      <div class="stepper">
+        <button class="ghost" id="offMinus" aria-label="Adelantar subtítulo medio segundo">−0.5s</button>
+        <span id="offsetLbl">0.0s</span>
+        <button class="ghost" id="offPlus" aria-label="Atrasar subtítulo medio segundo">+0.5s</button>
+      </div>
+    </div>
   </section>
 
   <section>
     <h2>Subtítulos en español</h2>
     <div class="row">
-      <input type="text" id="subQ" placeholder="nombre para buscar en OpenSubtitles…">
+      <input type="text" id="subQ" aria-label="Nombre para buscar subtítulo" placeholder="nombre para buscar en OpenSubtitles…">
       <button id="subSearchBtn">Buscar</button>
     </div>
     <p id="subMsg" style="font-size:13px;color:var(--mut);min-height:18px;margin:8px 0 0"></p>
     <div id="subResults" style="margin-top:8px"></div>
     <div class="row" style="margin-top:8px">
-      <input type="file" id="subFile" accept=".srt,.vtt" style="flex:1">
+      <input type="file" id="subFile" accept=".srt,.vtt" style="flex:1" aria-label="Archivo de subtítulo">
       <button class="ghost" id="subUpBtn">Subir .srt</button>
     </div>
   </section>
-</main>
-
-<div id="player">
-  <div class="title" id="nowTitle">sin reproducción</div>
-  <input type="range" id="seek" min="0" max="100" value="0" step="1">
-  <div class="times"><span id="tCur">0:00</span> / <span id="tDur">0:00</span> · <span id="state">—</span></div>
-  <div class="ctrls">
-    <button id="backBtn" class="ghost">−10s</button>
-    <button id="ppBtn" class="big">⏯</button>
-    <button id="fwdBtn" class="ghost">+10s</button>
-    <button id="stopBtn" class="ghost">⏹</button>
-    <input type="range" id="vol" min="0" max="100" value="80">
-    <button id="muteBtn" class="ghost">🔊</button>
-  </div>
-  <div class="subrow">
-    <select id="subSel"><option value="none">Sin subtítulos</option></select>
-    <div class="stepper">
-      <button class="ghost" id="offMinus">−0.5s</button>
-      <span id="offsetLbl">0.0s</span>
-      <button class="ghost" id="offPlus">+0.5s</button>
-    </div>
-  </div>
 </div>
+</main>
 
 <script>
 const $ = id => document.getElementById(id);
 const api = (m, u, b) => fetch(u, {method:m, headers:{'Content-Type':'application/json'}, body:b?JSON.stringify(b):undefined}).then(r=>r.json());
 let FILES = [], CUR = null, OFFSET = 0, SEEKING = false;
+const ICON_PLAY = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+const ICON_VOL = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6.5 9H3v6h3.5L11 19z" fill="currentColor" stroke="none"/><path d="M15 9a4.5 4.5 0 0 1 0 6"/><path d="M17.5 6.5a8 8 0 0 1 0 11"/></svg>';
+const ICON_MUTE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6.5 9H3v6h3.5L11 19z" fill="currentColor" stroke="none"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
+let LAST_PP = '', LAST_MUTE = null;
+function setPP(playing) { const k = playing ? 'pause' : 'play'; if (k === LAST_PP) return; LAST_PP = k; $('ppBtn').innerHTML = playing ? ICON_PAUSE : ICON_PLAY; }
+function setMute(m) { if (m === LAST_MUTE) return; LAST_MUTE = m; $('muteBtn').innerHTML = m ? ICON_MUTE : ICON_VOL; }
+setPP(false); setMute(false);
 
 const fmt = s => { s=Math.max(0,Math.floor(s||0)); const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60; return (h?h+':':'')+String(m).padStart(h?2:1,'0')+':'+String(x).padStart(2,'0'); };
 const selFile = () => FILES.find(f=>f.id===CUR);
+function showView(name) {
+  $('view-browser').classList.toggle('hidden', name !== 'browser');
+  $('view-player').classList.toggle('hidden', name !== 'player');
+  window.scrollTo(0, 0);
+}
 
 async function init() {
   const s = await api('GET','/api/server').catch(()=>null);
   if (s) $('srvInfo').textContent = 'Abrí en el celu: ' + s.base_url;
-  await scanDevices(); await loadDirs(); await loadFiles(); setInterval(poll, 2500);
+  await scanDevices(); await loadDirs(); await loadFiles();
+  await restoreSession();
+  setInterval(poll, 2500);
+}
+async function restoreSession() {
+  const r = await api('GET','/api/status').catch(()=>null);
+  const mid = r && r.session && r.session.media_id;
+  if (!r || !r.connected || !mid || !/PLAYING|PAUSED|BUFFERING/.test(r.player_state || '')) return;
+  const f = FILES.find(v => v.id === mid);
+  if (!f) return;
+  CUR = mid; OFFSET = Number((r.session && r.session.offset) || 0);
+  $('offsetLbl').textContent = OFFSET.toFixed(1) + 's';
+  $('nowTitle').textContent = f.name;
+  $('subQ').value = f.name.replace(/\.[^.]+$/, '').replace(/[._]/g, ' ');
+  await loadSubs();
+  const want = r.session.sub || 'none';
+  if ([...$('subSel').options].some(o => o.value === want)) $('subSel').value = want;
+  showView('player');
+  poll();
 }
 async function scanDevices() {
   $('devInfo').textContent = 'buscando Chromecasts…';
@@ -146,7 +216,7 @@ async function loadDirs() {
     const n = document.createElement('div'); n.className='name'; n.textContent = d;
     t.appendChild(n); row.appendChild(t);
     if (r.custom.includes(d)) {
-      const b = document.createElement('button'); b.className='ghost'; b.textContent='✕';
+      const b = document.createElement('button'); b.className='ghost'; b.textContent='✕'; b.setAttribute('aria-label','Quitar carpeta');
       b.onclick = async () => { await api('DELETE','/api/dirs',{path:d}); await loadDirs(); await loadFiles(); };
       row.appendChild(b);
     } else {
@@ -171,7 +241,7 @@ function renderFiles(f) {
   const q = (f||'').toLowerCase();
   FILES.filter(v=>v.name.toLowerCase().includes(q)).forEach(v => {
     const d = document.createElement('div'); d.className='file';
-    d.innerHTML = `<div class="meta"><div class="name"></div><div class="sub">${v.size_mb} MB · ${v.mode} · ${v.subs.length-1} subs</div></div><span class="badge${v.mode==='direct'?'':' trans'}">${v.mode==='direct'?'▶ directo':'⚙ '+v.mode}</span>`;
+    d.innerHTML = `<div class="meta"><div class="name"></div><div class="sub">${v.size_mb} MB · ${v.mode} · ${v.subs.length-1} subs</div></div><span class="badge${v.mode==='direct'?'':' trans'}">${v.mode==='direct'?'directo':v.mode}</span>`;
     d.querySelector('.name').textContent = v.name;
     const b = document.createElement('button'); b.textContent='Castear'; b.onclick=()=>castFile(v.id);
     d.appendChild(b); box.appendChild(d);
@@ -182,7 +252,10 @@ async function castFile(id) {
   CUR = id; OFFSET = 0; $('offsetLbl').textContent='0.0s';
   const f = selFile(); $('subQ').value = f ? f.name.replace(/\.[^.]+$/,'').replace(/[._]/g,' ') : '';
   const r = await api('POST','/api/cast',{media:id, sub:'none', offset:0});
-  if (r.error) alert('Error: '+r.error); else { $('nowTitle').textContent = f.name; await loadSubs(); }
+  if (r.error) { alert('Error: '+r.error); return; }
+  $('nowTitle').textContent = f.name;
+  await loadSubs();
+  showView('player');
 }
 async function loadSubs() {
   if (!CUR) return;
@@ -190,7 +263,8 @@ async function loadSubs() {
   const sel = $('subSel'); sel.innerHTML='';
   (r.subs||[{key:'none',label:'Sin subtítulos'}]).forEach(s=>{ const o=document.createElement('option'); o.value=s.key; o.textContent=s.label; sel.appendChild(o); });
 }
-async function applySub() { if (CUR) await api('POST','/api/subtitle',{sub:$('subSel').value, offset:OFFSET}); }
+async function applySub() { if (!CUR) return; const r = await api('POST','/api/subtitle',{sub:$('subSel').value, offset:OFFSET}); if (r && r.error) alert('Subtítulo: '+r.error); }
+async function togglePP() { const s = await api('GET','/api/status'); (s.player_state==='PLAYING') ? await api('POST','/api/pause') : await api('POST','/api/play'); poll(); }
 async function poll() {
   const r = await api('GET','/api/status').catch(()=>null);
   if (!r || !r.connected) { $('state').textContent = r&&r.error ? 'error' : 'desconectado'; return; }
@@ -198,7 +272,7 @@ async function poll() {
   if (r.duration && !SEEKING) { $('seek').max = Math.floor(r.duration); $('seek').value = Math.floor(r.current_time||0); }
   $('tCur').textContent = fmt(r.current_time); $('tDur').textContent = fmt(r.duration);
   if (r.volume_level!=null && document.activeElement!==$('vol')) $('vol').value = Math.round(r.volume_level*100);
-  $('muteBtn').textContent = r.volume_muted ? '🔇' : '🔊';
+  setMute(!!r.volume_muted); setPP(r.player_state==='PLAYING');
 }
 $('dirAddBtn').onclick = async () => {
   const v = $('dirInput').value.trim(); if (!v) return;
@@ -210,10 +284,10 @@ $('scanBtn').onclick = scanDevices;
 $('connBtn').onclick = async () => { const r = await api('POST','/api/connect',{host:$('devSel').value||undefined}); $('devInfo').textContent = r.connected ? 'conectado: '+r.connected.name : ('Error: '+(r.error||'?')); };
 $('reloadBtn').onclick = loadFiles;
 $('filter').oninput = e => renderFiles(e.target.value);
-$('ppBtn').onclick = async () => { const s = await api('GET','/api/status'); (s.player_state==='PLAYING') ? await api('POST','/api/pause') : await api('POST','/api/play'); poll(); };
-$('stopBtn').onclick = async () => { await api('POST','/api/stop'); $('nowTitle').textContent='sin reproducción'; };
-$('backBtn').onclick = () => api('POST','/api/seek',{delta:-10}).then(poll);
-$('fwdBtn').onclick = () => api('POST','/api/seek',{delta:10}).then(poll);
+$('ppBtn').onclick = togglePP;
+$('stopBtn').onclick = async () => { await api('POST','/api/stop'); CUR = null; $('nowTitle').textContent='sin reproducción'; showView('browser'); };
+$('browseBtn').onclick = () => showView('browser');
+document.querySelectorAll('[data-delta]').forEach(b => { b.onclick = () => api('POST','/api/seek',{delta:+b.dataset.delta}).then(poll); });
 $('seek').addEventListener('pointerdown',()=>SEEKING=true);
 $('seek').addEventListener('pointerup',e=>{ SEEKING=false; api('POST','/api/seek',{position:+e.target.value}).then(poll); });
 $('vol').onchange = e => api('POST','/api/volume',{level:+e.target.value/100});
@@ -221,6 +295,13 @@ $('muteBtn').onclick = async () => { const s = await api('GET','/api/status'); a
 $('subSel').onchange = applySub;
 $('offMinus').onclick = () => { OFFSET=Math.round((OFFSET-0.5)*10)/10; $('offsetLbl').textContent=OFFSET.toFixed(1)+'s'; applySub(); };
 $('offPlus').onclick = () => { OFFSET=Math.round((OFFSET+0.5)*10)/10; $('offsetLbl').textContent=OFFSET.toFixed(1)+'s'; applySub(); };
+document.addEventListener('keydown', e => {
+  const t = (e.target && e.target.tagName) || '';
+  if (/INPUT|SELECT|TEXTAREA/.test(t)) return;
+  if (e.code === 'Space') { e.preventDefault(); togglePP(); }
+  else if (e.key === 'ArrowLeft') api('POST','/api/seek',{delta:-10}).then(poll);
+  else if (e.key === 'ArrowRight') api('POST','/api/seek',{delta:10}).then(poll);
+});
 $('subSearchBtn').onclick = async () => {
   if (!CUR) return say('Casteá primero un archivo');
   const box = $('subResults'); box.textContent = 'buscando…'; say('');

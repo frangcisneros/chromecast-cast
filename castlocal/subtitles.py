@@ -22,16 +22,26 @@ def read_text(path: Path) -> str:
 
 
 def find_local(video: Path) -> list[Path]:
-    """Sidecar .srt/.vtt next to the video, same stem first."""
+    """Sidecar .srt/.vtt for video: same name first, then rest of the folder.
+
+    Order is deterministic (sorted) so local:{i} keys stay stable between
+    the file list and the subtitle switch.
+    """
     out: list[Path] = []
     for ext in config.SUB_EXTS:
         cand = video.with_suffix(ext)
         if cand.is_file():
             out.append(cand)
-    for sib in video.parent.glob(f"{video.stem}*.*"):
-        if sib.is_file() and sib.suffix.lower() in config.SUB_EXTS and sib not in out:
-            out.append(sib)
-    return out
+    try:
+        siblings = sorted(
+            p for p in video.parent.iterdir() if p.is_file() and p.suffix.lower() in config.SUB_EXTS
+        )
+    except OSError:
+        siblings = []
+    stem = video.stem.lower()
+    prefixed = [p for p in siblings if p not in out and p.stem.lower().startswith(stem)]
+    rest = [p for p in siblings if p not in out and p not in prefixed]
+    return out + prefixed + rest
 
 
 def srt_to_vtt(text: str) -> str:
@@ -66,13 +76,63 @@ def _format_ts(total: float) -> str:
 
 
 def shift_vtt(vtt: str, offset: float) -> str:
+    """Shift cue timestamps by offset seconds (block-wise).
+
+    Cues ending at or before 0 after shifting are dropped (they belong to
+    a part of the video that is not playing anymore, e.g. after a seek
+    restarts a transcode from a later position); a cue straddling 0 starts
+    at 0. Non-cue blocks (NOTE, STYLE, header) are kept as-is.
+    """
     if not offset:
         return vtt
+    lines = vtt.split("\n")
+    head: list[str] = []
+    i = 0
+    while i < len(lines) and lines[i].strip():
+        head.append(lines[i])
+        i += 1
+    blocks = [b for b in re.split(r"\n\s*\n", "\n".join(lines[i:])) if b.strip()]
+    kept: list[str] = []
+    for block in blocks:
+        blines = block.strip().split("\n")
+        tline_idx = next((k for k, ln in enumerate(blines) if "-->" in ln), None)
+        if tline_idx is None:
+            kept.append(block.strip())
+            continue
+        stamps = list(_TS.finditer(blines[tline_idx]))[:2]
+        if len(stamps) < 2:
+            kept.append(block.strip())
+            continue
+        start = _to_seconds(stamps[0]) + offset
+        end = _to_seconds(stamps[1]) + offset
+        if end <= 0:
+            continue
+        line = blines[tline_idx]
+        (s0, s1), (e0, e1) = stamps[0].span(), stamps[1].span()
+        line = line[:e0] + _format_ts(end) + line[e1:]
+        line = line[:s0] + _format_ts(max(0.0, start)) + line[s1:]
+        blines[tline_idx] = line
+        kept.append("\n".join(blines))
+    return "\n\n".join(head + kept) + "\n"
 
-    def repl(m: re.Match) -> str:
-        return _format_ts(_to_seconds(m) + offset)
 
-    return _TS.sub(repl, vtt)
+def _narrow_cues(vtt: str, width: int) -> str:
+    """Append `size:N%` to cue timing lines that carry no settings.
+
+    Narrows the cue box (centered) so edge text survives TV overscan.
+    width >= 100 (or <= 0) = no-op.
+    """
+    if width >= 100 or width <= 0:
+        return vtt
+    out = []
+    for line in vtt.split("\n"):
+        if "-->" in line:
+            _head, _, tail = line.partition("-->")
+            stamps = list(_TS.finditer(tail))
+            if stamps and not tail[stamps[-1].end() :].strip():
+                line = line.rstrip() + f" size:{width}%"
+        out.append(line)
+    return "\n".join(out)
 
 
 def load_vtt(path: Path, offset: float = 0) -> str:
@@ -80,7 +140,8 @@ def load_vtt(path: Path, offset: float = 0) -> str:
     vtt = text if path.suffix.lower() == ".vtt" else srt_to_vtt(text)
     if not vtt.startswith("WEBVTT"):
         vtt = "WEBVTT\n\n" + vtt
-    return shift_vtt(vtt, offset)
+    vtt = shift_vtt(vtt, offset)
+    return _narrow_cues(vtt, config.SUB_WIDTH)
 
 
 def _headers(extra: dict | None = None) -> dict:

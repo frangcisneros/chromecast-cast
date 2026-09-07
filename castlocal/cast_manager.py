@@ -12,9 +12,39 @@ from typing import Any
 
 import pychromecast
 
+from castlocal import config
+
 _lock = threading.Lock()
 _cast: Any | None = None
 _device: dict[str, Any] = {}
+
+
+def _install_sub_style(mc) -> None:
+    """Add fontScale to LOAD messages carrying subtitle tracks.
+
+    pychromecast hardcodes textTrackStyle without fontScale; wrapping
+    send_message is the only injection point that survives upgrades.
+    Installed once per controller.
+    """
+    if getattr(mc, "_castlocal_style_wrapped", False):
+        return
+    orig_send = mc.send_message
+
+    def send_with_style(msg, **kwargs):
+        try:
+            media = msg.get("media") if isinstance(msg, dict) else None
+            if isinstance(media, dict):
+                style = media.get("textTrackStyle")
+                if isinstance(style, dict) and config.SUBTITLE_SCALE != 1.0:
+                    style = dict(style)
+                    style["fontScale"] = config.SUBTITLE_SCALE
+                    media["textTrackStyle"] = style
+        except Exception:
+            pass
+        return orig_send(msg, **kwargs)
+
+    mc.send_message = send_with_style
+    mc._castlocal_style_wrapped = True
 
 
 def discover(timeout: int = 6) -> list[dict[str, Any]]:
@@ -62,6 +92,7 @@ def connect(host: str | None = None, name: str | None = None, timeout: int = 10)
                 raise ConnectionError("no Chromecast found on this network")
         cc.wait(timeout=timeout)
         _cast = cc
+        _install_sub_style(cc.media_controller)
         _device = {
             "name": cc.cast_info.friendly_name,
             "host": cc.cast_info.host,

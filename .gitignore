@@ -4,3 +4,5 @@ __pycache__/
 *.log
 .ruff_cache/
 .pytest_cache/
+AGENTS.md
+scripts/tmp/

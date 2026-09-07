@@ -4,7 +4,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/projects/castlocal
+WorkingDirectory=@@DIR@@
 ExecStart=%h/.local/bin/uv run python -m castlocal.app
 Restart=on-failure
 Environment=CASTLOCAL_PORT=8000

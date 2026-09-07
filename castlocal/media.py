@@ -146,7 +146,7 @@ def decide(path: Path, info: dict | None = None) -> tuple[str, str]:
         return "direct", "video/mp4"
     vcodec, level = video_props(info)
     acodec, channels = audio_props(info)
-    video_ok = vcodec in DIRECT_VIDEO and (level is None or level <= 4.0)
+    video_ok = vcodec in DIRECT_VIDEO and (level is None or level <= config.MAX_LEVEL)
     audio_ok = (not acodec or acodec in DIRECT_AUDIO) and (channels == 0 or channels <= 2)
     if video_ok and audio_ok:
         return "direct", "video/mp4"

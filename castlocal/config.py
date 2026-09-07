@@ -11,6 +11,12 @@ SUBS_CACHE = CACHE_DIR / "subs"
 CONFIG_DIR = Path.home() / ".config" / "castlocal"
 DIRS_FILE = CONFIG_DIR / "dirs.json"
 PORT = int(os.environ.get("CASTLOCAL_PORT", "8000"))
+SUBTITLE_SCALE = float(os.environ.get("CASTLOCAL_SUB_SCALE", "1.15"))
+# H264 level ceiling: 4.0 = 1st-gen, 4.2 = 2nd/3rd-gen (NC2-6A5), 5.x = Ultra.
+MAX_LEVEL = float(os.environ.get("CASTLOCAL_MAX_LEVEL", "4.0"))
+# Ancho de la caja de subtítulos en % (100 = toda la pantalla). Teles viejos
+# con overscan recortan los bordes: 85-90 lo mete en zona segura.
+SUB_WIDTH = int(os.environ.get("CASTLOCAL_SUB_WIDTH", "100"))
 
 VIDEO_EXTS = {
     ".mp4",

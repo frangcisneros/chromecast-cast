@@ -8,6 +8,8 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 
+from castlocal import config
+
 CHUNK = 1024 * 256
 
 _tlock = threading.Lock()
@@ -54,17 +56,30 @@ def ffmpeg_cmd(path: Path, start: float, mode: str = "transcode") -> list[str]:
     if mode == "remux":
         video_args = ["-c:v", "copy"]
     else:
+        # Máxima calidad razonable en tiempo real (medido: ~38fps en 1080p24
+        # con 12 hilos): CRF 18 + preset medium + tune film. Todo lo que supere
+        # 1080p se baja a 1080p (scale con min: si ya es <=1920 no toca nada).
+        # Techo 40M/50000k < límites de High@L4.2; si el WiFi se entrecorta,
+        # bajar maxrate primero, CRF después.
         video_args = [
             "-c:v",
             "libx264",
             "-preset",
-            "veryfast",
+            "medium",
             "-tune",
-            "zerolatency",
+            "film",
+            "-crf",
+            "18",
+            "-maxrate",
+            "40M",
+            "-bufsize",
+            "50000k",
+            "-vf",
+            "scale=w='min(iw,1920)':h='-2'",
             "-profile:v",
             "high",
             "-level",
-            "4.0",
+            str(config.MAX_LEVEL),
             "-pix_fmt",
             "yuv420p",
         ]
