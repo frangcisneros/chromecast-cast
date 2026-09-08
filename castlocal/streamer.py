@@ -131,6 +131,9 @@ def transcode_chunks() -> Iterator[bytes]:
         proc = _transcode.get("process")
     if proc is None or proc.stdout is None:
         return
+    # TODO: si el cliente HTTP/Chromecast se desconecta a mitad de la transcodificación,
+    # ffmpeg no come RAM (se bloquea en el buffer de 64KB del pipe), pero queda dormido
+    # hasta el próximo seek/stop. Limpiar proc al cerrar el generador (GeneratorExit).
     while True:
         data = proc.stdout.read(CHUNK)
         if not data:
